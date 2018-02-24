@@ -248,8 +248,6 @@ class SerialInterface:
 		while not self.__receiverStopEvent.isSet():
 			try:
 				tmp = self._interface.read()
-				print "RX"
-				print str(tmp)
 				msg = self._decode(tmp)
 				#print str(msg)
 				if msg:
