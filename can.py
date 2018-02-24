@@ -7,9 +7,104 @@ import time
 import uspp.uspp as serial
 import message_dispatcher as dispatcher
 
+import os
+import sys
+import mhsTinyCanDriver as CanDriver
+canDriver = CanDriver.MhsTinyCanDriver()
 # ------------------------------------------------------------------------------
 class CanException(Exception):
 	pass
+
+# ------------------------------------------------------------------------------
+class Tiny(dispatcher.MessageDispatcher):
+	"""Interface for all devices compatible with tinyCan
+	
+	see http://www.mhs-elektronik.de/
+	"""
+	def __init__(self, port = None, baud = 9600, debug = False):
+		print "init Tiny"
+		dispatcher.MessageDispatcher.__init__(self)
+		self.__receiverStopEvent = threading.Event()
+
+	def connect(self, port = None, baud = None, debug = None):
+		print "connect Tiny"
+		self.__receiverStopEvent.clear()
+		
+		# start the receiver thread
+		self.__receiverThread = threading.Thread(target = self.__receive)
+		self.__receiverThread.start()
+		# TODO replace constants
+		err = canDriver.OpenComplete(snr=None, canSpeed=125)
+		print(canDriver.FormatError(err, 'OpenComplete'))
+		if err:            
+		    sys.exit(0)
+
+		# Read status information
+		status = canDriver.CanGetDeviceStatus()
+		print(canDriver.FormatCanDeviceStatus(status[1], status[2], status[3]))
+
+	def _decode(self, msg):
+		#print "decode Tiny"
+		#print msg
+		#print 'id'
+		#print msg.Id
+		#print 'data'
+		#print msg.Data[0:]
+		message = Message( int(msg.Id, 16), msg.Data, msg.Flags.FlagBits.EFF, msg.Flags.FlagBits.RTR)
+		return message
+	
+	#def _encode(self, message):
+	#	print "encode Tiny"
+
+	def disconnect(self, port = None, baud = None, debug = None):
+		print "disconnect Tiny"
+		canDriver.CanDownDriver()
+		canDriver.so = None
+		# send a stop event
+		self.__receiverStopEvent.set()
+		
+		# wait for the two threads to stop their work
+		self.__receiverThread.join()
+
+	def send(self, message):
+		#print("< " + str(message.data))
+		#print("< " + str(message))
+                canDriver.TransmitData(0, msgId = message.id, msgData = message.data)
+                #canDriver.TransmitData(0, msgId = message.id, msgData = message.data[:0])
+
+	def __receive(self):
+		"""Receiver Thread
+		
+		Try to read and decode messages from the can bus.
+		"""
+		print "receive"
+		while not self.__receiverStopEvent.isSet():
+			#try:
+				res = canDriver.CanReceive(count = 500)
+				if res[0] > 0:
+					msg = res[1][0]
+					#print "RX"
+					mssage = Message( msg.Id, msg.Data[0:], msg.Flags.FlagBits.EFF, msg.Flags.FlagBits.RTR)
+					#message = Message( int(msg.Id, 16), msg.Data[0:], msg.Flags.FlagBits.EFF, msg.Flags.FlagBits.RTR)
+					#msgs = canDriver.FormatMessages(res[1])
+					#for msg in msgs:
+					#	print(msg)
+					self._processMessage(mssage)
+				else:
+					if res[0] < 0:
+						print(canDriver.FormatError(res, 'CanReceive'))
+
+				#print res
+				#if res[0] > 0: # [0] = count of received msgs
+				#	#print('RXraw: ' + str(res[1][0].Data[0:]))
+				#	print('RXraw: ' + str(res[1].Data[0:]))
+				#        #msg = self._decode(res[1][0])
+				#        msg = self._decode(res[1][0].Data[0:])
+				#	#msgs = canDriver.FormatMessages(res[1])
+				##for msg in msgs:
+				#	#print("formatted:")
+			#except:
+			#	self.__receiverStopEvent.wait(0.001)
 
 # ------------------------------------------------------------------------------
 class Message:
@@ -152,7 +247,11 @@ class SerialInterface:
 		"""
 		while not self.__receiverStopEvent.isSet():
 			try:
-				msg = self._decode(self._interface.read())
+				tmp = self._interface.read()
+				print "RX"
+				print str(tmp)
+				msg = self._decode(tmp)
+				#print str(msg)
 				if msg:
 					#self.__receiveQueue.put(msg)
 					self._processMessage(msg)

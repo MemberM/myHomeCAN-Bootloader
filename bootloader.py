@@ -204,6 +204,7 @@ class Bootloader:
 			try:
 				self._start_bootloader_command()
 				response = self._send(subject = MessageSubject.IDENTIFY, timeout = 0.1, attempts = 10)
+				self.debug("response: " + str(response))
 			except BootloaderException:
 				pass
 			else:
@@ -387,6 +388,7 @@ class Bootloader:
 						  data_counter = counter,
 						  data = data )
 		
+		#self.debug(">TX " + str(message))
 		if not response:
 			# no response needed, just send the message and return
 			self.interface.send( message.encode() )
@@ -415,6 +417,7 @@ class Bootloader:
 				except Queue.Empty:
 					break;
 				else:
+					self.debug("check response")
 					if response_msg.subject == message.subject:
 						if response_msg.type == MessageType.SUCCESS:
 							finished = True
@@ -569,7 +572,12 @@ if __name__ == '__main__':
 	print "Size      : %i Bytes" % reduce(lambda x,y: x + y, map(lambda x: len(x), hexfile.segments))
 	
 	# create a connection to the can bus
-	if options.type == "can2usb":
+	if options.type == "tiny":
+		print "Interface : tinyCan\n"
+		interface = can.Tiny(port = options.port, 
+								baud = int(options.baudrate, 10),
+								debug = debug_mode)
+	elif options.type == "can2usb":
 		print "Interface : CAN2USB\n"
 		interface = can.Usb2Can(port = options.port, 
 								baud = int(options.baudrate, 10),
