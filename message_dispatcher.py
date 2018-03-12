@@ -33,8 +33,8 @@ class MessageDispatcher:
 		for filter in self.filter:
 			if filter.check(message):
 				self._executeCallback(filter.getCallback(), message)
-			else:
-				print('no filter match')
+			#else:
+				#print('no filter match')
 	
 	def _executeCallback(self, callback, message):
 		"""Call a callback function."""

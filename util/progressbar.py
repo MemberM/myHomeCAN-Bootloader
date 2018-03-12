@@ -92,5 +92,5 @@ if __name__ == '__main__':
 	for x in range(0,101):
 		time.sleep(0.10)
 		bar(x)
-	print ""
+	print ("")
 
